@@ -1,0 +1,90 @@
+<Window x:Class="ProjectDock.HotkeyWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="快捷键"
+        Width="380"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        UseLayoutRounding="True"
+        PreviewKeyDown="OnPreviewKeyDown">
+    <Border Margin="12"
+            Padding="18"
+            CornerRadius="14"
+            Background="#FF111319"
+            BorderBrush="#FF2B303B"
+            BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="24" ShadowDepth="4" Direction="270" Opacity="0.5" Color="#FF000000" />
+        </Border.Effect>
+
+        <StackPanel>
+            <TextBlock Text="呼出快捷键" FontSize="13" FontWeight="SemiBold" Foreground="#FFF2F5FA" />
+            <TextBlock Text="点击下面的方框后直接按下组合键，需要包含 Ctrl / Alt / Shift / Win 中的至少一个。"
+                       FontSize="10.5"
+                       Foreground="#FF7C8496"
+                       TextWrapping="Wrap"
+                       Margin="0,4,0,0" />
+
+            <Border x:Name="CaptureBox"
+                    Margin="0,12,0,0"
+                    Padding="14,12"
+                    CornerRadius="9"
+                    Background="#FF1B2029"
+                    BorderBrush="#FF2E3440"
+                    BorderThickness="1"
+                    Cursor="Hand"
+                    MouseLeftButtonDown="OnCaptureClick">
+                <TextBlock x:Name="ComboText"
+                           Text="Alt+F2"
+                           FontSize="17"
+                           FontWeight="SemiBold"
+                           Foreground="#FFF2F5FA"
+                           HorizontalAlignment="Center" />
+            </Border>
+
+            <TextBlock x:Name="WarnText"
+                       Text="⚠ Alt+F4 是 Windows 的「关闭当前窗口」快捷键。启用后它会被本程序接管，不再关闭窗口。"
+                       FontSize="10.5"
+                       Foreground="#FFE0A24B"
+                       TextWrapping="Wrap"
+                       Margin="0,9,0,0"
+                       Visibility="Collapsed" />
+
+            <TextBlock x:Name="ErrorText"
+                       FontSize="10.5"
+                       Foreground="#FFE07A9A"
+                       TextWrapping="Wrap"
+                       Margin="0,8,0,0"
+                       Visibility="Collapsed" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                <Button Content="默认值"
+                        Width="66"
+                        Height="30"
+                        Margin="0,0,8,0"
+                        FontSize="12"
+                        Style="{StaticResource IconButton}"
+                        Click="OnResetClick" />
+                <Button Content="取消"
+                        Width="66"
+                        Height="30"
+                        Margin="0,0,8,0"
+                        FontSize="12"
+                        Style="{StaticResource IconButton}"
+                        Click="OnCancelClick" />
+                <Button Content="保存"
+                        Width="66"
+                        Height="30"
+                        FontSize="12"
+                        Style="{StaticResource PrimaryButton}"
+                        Click="OnSaveClick" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>
