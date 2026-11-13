@@ -9,7 +9,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>ProjectDock</AssemblyName>
     <RootNamespace>ProjectDock</RootNamespace>
-    <Version>0.2.1</Version>
+    <Version>0.2.2</Version>
     <Product>ProjectDock</Product>
     <AssemblyTitle>ProjectDock 项目窗口分组</AssemblyTitle>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>

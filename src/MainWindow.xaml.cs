@@ -14,14 +14,13 @@ public partial class MainWindow : Window
     private readonly GroupStore _store;
     private readonly WindowService _windows;
     private readonly DispatcherTimer _timer;
-    private readonly DispatcherTimer _focusTimer;
-    private DateTime _lastDeactivated = DateTime.MinValue;
+    private readonly MouseHookService _mouseHook;
+    private DateTime _lastHiddenAt = DateTime.MinValue;
     private DateTime _graceUntil = DateTime.MinValue;
+    private DispatcherTimer? _focusRetryTimer;
     private bool _suppressHide;
     private bool _dirty;
     private bool _allowClose;
-    private bool _everForeground;
-    private IntPtr _handle;
 
     public string HotkeyText { get; set; } = AppSettings.DefaultHotkey;
 
@@ -59,9 +58,8 @@ public partial class MainWindow : Window
         };
         _timer.Start();
 
-        _focusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-        _focusTimer.Tick += (_, _) => GuardVisibility();
-        _focusTimer.Start();
+        _mouseHook = new MouseHookService();
+        _mouseHook.ButtonDown += OnGlobalButtonDown;
 
         Deactivated += OnDeactivated;
         SizeChanged += (_, _) =>
@@ -72,11 +70,7 @@ public partial class MainWindow : Window
             }
         };
         PreviewKeyDown += OnPreviewKeyDown;
-        SourceInitialized += (_, _) =>
-        {
-            _handle = new WindowInteropHelper(this).Handle;
-            ApplyToolWindowStyle();
-        };
+        SourceInitialized += (_, _) => ApplyToolWindowStyle();
         Closing += (_, e) =>
         {
             if (_allowClose)
@@ -90,32 +84,40 @@ public partial class MainWindow : Window
         MenuPopup.Closed += (_, _) =>
         {
             _suppressHide = false;
-            _lastDeactivated = DateTime.MinValue;
+            _lastHiddenAt = DateTime.MinValue;
         };
     }
 
     public void ShowPanel()
     {
-        Log("ShowPanel");
+        Diagnostics.Log("ShowPanel");
         Refresh();
         Show();
         HintText.Text = $"按项目整理正在运行的窗口 · {HotkeyText} 呼出";
         UpdateLayout();
         PositionBottomRight();
-        _everForeground = false;
         ForceForeground();
+        _mouseHook.Start();
 
         _graceUntil = DateTime.UtcNow.AddMilliseconds(600);
     }
 
     public void HidePanel()
     {
-        Log("HidePanel");
+        Diagnostics.Log("HidePanel");
+        _lastHiddenAt = DateTime.UtcNow;
+        CancelFocusRetry();
+        _mouseHook.Stop();
+        _graceUntil = DateTime.MinValue;
         Hide();
         FlushState();
     }
 
-    public void PrepareForExit() => _allowClose = true;
+    public void PrepareForExit()
+    {
+        _allowClose = true;
+        _mouseHook.Dispose();
+    }
 
     public void TogglePanel()
     {
@@ -125,7 +127,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if ((DateTime.UtcNow - _lastDeactivated).TotalMilliseconds < 260)
+        if ((DateTime.UtcNow - _lastHiddenAt).TotalMilliseconds < 220)
         {
             return;
         }
@@ -230,66 +232,122 @@ public partial class MainWindow : Window
 
     private void OnDeactivated(object? sender, EventArgs e)
     {
-        Log($"Deactivated grace={DateTime.UtcNow < _graceUntil} suppress={_suppressHide}");
-        _lastDeactivated = DateTime.UtcNow;
+        Diagnostics.Log($"Deactivated grace={DateTime.UtcNow < _graceUntil} suppress={_suppressHide} menu={MenuPopup.IsOpen}");
 
-        if (DateTime.UtcNow < _graceUntil)
+        if (_suppressHide || MenuPopup.IsOpen)
         {
             return;
         }
 
-        if (_suppressHide)
+        if (DateTime.UtcNow < _graceUntil)
         {
+            QueueFocusRetry();
             return;
         }
 
         HidePanel();
     }
 
-    private void GuardVisibility()
+    private void OnGlobalButtonDown(Point point)
     {
+        Diagnostics.Log($"button down visible={IsVisible} suppress={_suppressHide} menu={MenuPopup.IsOpen}");
         if (!IsVisible || _suppressHide || MenuPopup.IsOpen)
         {
             return;
         }
 
-        var foreground = NativeMethods.GetForegroundWindow();
-        if (foreground == _handle)
+        var target = NativeMethods.WindowFromPoint(new NativeMethods.POINT
         {
-            _everForeground = true;
+            X = (int)point.X,
+            Y = (int)point.Y,
+        });
+
+        if (target == IntPtr.Zero)
+        {
             return;
         }
 
-        NativeMethods.GetWindowThreadProcessId(foreground, out var pid);
+        NativeMethods.GetWindowThreadProcessId(target, out var pid);
         if (pid == (uint)Environment.ProcessId)
         {
-            // 自己的对话框或菜单弹窗仍在前台
+            Diagnostics.Log("own window, keep");
             return;
         }
 
-        if (!_everForeground && DateTime.UtcNow < _graceUntil)
-        {
-            Log($"Guard: refocus (ever={_everForeground})");
-            ForceForeground();
-            return;
-        }
+        Diagnostics.Log($"target pid={pid} class={GetClassName(target)}");
 
-        Log($"Guard: hide (ever={_everForeground} fg={foreground})");
         HidePanel();
     }
 
-    private static void Log(string message)
+    private static string GetClassName(IntPtr handle)
     {
-        try
+        var buffer = new System.Text.StringBuilder(256);
+        NativeMethods.GetClassName(handle, buffer, buffer.Capacity);
+        return buffer.ToString();
+    }
+
+    private void QueueFocusRetry()
+    {
+        if (_focusRetryTimer is not null)
         {
-            File.AppendAllText(
-                Path.Combine(Path.GetTempPath(), "pd-focus.log"),
-                $"{DateTime.Now:HH:mm:ss.fff} {message}\n");
+            return;
         }
-        catch
+
+        var remaining = _graceUntil - DateTime.UtcNow;
+        if (remaining < TimeSpan.Zero)
         {
-            // 调试日志失败时忽略
+            remaining = TimeSpan.Zero;
         }
+
+        _focusRetryTimer = new DispatcherTimer { Interval = remaining + TimeSpan.FromMilliseconds(60) };
+        _focusRetryTimer.Tick += (_, _) =>
+        {
+            CancelFocusRetry();
+            RecoverFocus();
+        };
+        _focusRetryTimer.Start();
+    }
+
+    private void CancelFocusRetry()
+    {
+        if (_focusRetryTimer is null)
+        {
+            return;
+        }
+
+        _focusRetryTimer.Stop();
+        _focusRetryTimer = null;
+    }
+
+    private void RecoverFocus()
+    {
+        if (!IsVisible || _suppressHide || MenuPopup.IsOpen || IsOwnWindowForeground())
+        {
+            return;
+        }
+
+        ForceForeground();
+
+        _focusRetryTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _focusRetryTimer.Tick += (_, _) =>
+        {
+            CancelFocusRetry();
+
+            if (!IsVisible || _suppressHide || MenuPopup.IsOpen || IsOwnWindowForeground())
+            {
+                return;
+            }
+
+            HidePanel();
+        };
+        _focusRetryTimer.Start();
+    }
+
+    private static bool IsOwnWindowForeground()
+    {
+        var foreground = NativeMethods.GetForegroundWindow();
+        NativeMethods.GetWindowThreadProcessId(foreground, out var pid);
+        return pid == (uint)Environment.ProcessId;
     }
 
     private void ForceForeground()
@@ -316,10 +374,6 @@ public partial class MainWindow : Window
         Activate();
         Focus();
 
-        if (NativeMethods.GetForegroundWindow() == handle)
-        {
-            _everForeground = true;
-        }
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
