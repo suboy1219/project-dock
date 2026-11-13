@@ -5,7 +5,7 @@
 
 **简体中文** | [English](#english)
 
-![ProjectDock 面板](docs/images/hero.png)
+<img src="docs/images/hero.png" width="404" alt="ProjectDock 面板" />
 
 ---
 
@@ -16,10 +16,12 @@
 同时开三个项目时，任务栏会堆成一排看不出区别的图标：三个 Unity、五个 VSCode、
 一堆文件夹和终端。想知道哪个窗口属于哪个项目，只能一个个点开看。
 
-ProjectDock 把这些窗口按项目收进一个面板：`p6h5` 一组、`csg` 一组、
-`desk-note` 一组，剩下的进「未分组」。面板用完就收，任务栏原样不动。
+ProjectDock 把这些窗口按项目收进一个面板：`Demo Game` 一组、`Web App` 一组、
+`Notes` 一组，剩下的进「未分组」。面板用完就收，任务栏原样不动。
 
 ### 效果
+
+下方图片中的项目名和窗口标题均为演示内容，使用通用软件名称。
 
 <p align="center">
   <img src="docs/images/panel.png" width="360" alt="项目分组面板" />
@@ -165,6 +167,8 @@ ProjectDock collects them into one panel — a group per project, everything els
 "未分组" (ungrouped). The panel disappears when you are done; the taskbar stays as is.
 
 ### Screenshots
+
+Project names and window titles in these images are examples using common software names.
 
 <p align="center">
   <img src="docs/images/panel.png" width="360" alt="Grouped panel" />
