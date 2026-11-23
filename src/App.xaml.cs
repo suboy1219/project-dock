@@ -126,6 +126,8 @@ public partial class App : System.Windows.Application
 
         menu.Items.Add(new WinForms.ToolStripSeparator());
 
+        menu.Items.Add(HelpMenu.Create());
+
         var exitItem = new WinForms.ToolStripMenuItem("退出");
         exitItem.Click += (_, _) => ExitApp();
         menu.Items.Add(exitItem);
